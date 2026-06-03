@@ -118,6 +118,16 @@ def load_config(config_path: str = None) -> dict:
     if env_embed_base_url:
         config.setdefault("embedding", {})["base_url"] = env_embed_base_url
 
+    # OMBRE_EMBEDDING_ENABLED toggles embedding.enabled.
+    env_embed_enabled = os.environ.get("OMBRE_EMBEDDING_ENABLED", "")
+    if env_embed_enabled:
+        config.setdefault("embedding", {})["enabled"] = env_embed_enabled.strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+
     # --- Ensure bucket storage directories exist ---
     # --- 确保记忆桶存储目录存在 ---
     buckets_dir = config["buckets_dir"]
