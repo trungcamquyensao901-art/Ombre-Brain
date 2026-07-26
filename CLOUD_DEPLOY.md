@@ -13,7 +13,7 @@ OMBRE_TRANSPORT=streamable-http
 OMBRE_BUCKETS_DIR=/app/buckets
 OMBRE_API_KEY=<paste in Zeabur, do not commit>
 OMBRE_BASE_URL=https://api.deepseek.com/v1
-OMBRE_DEHYDRATION_MODEL=deepseek-chat
+OMBRE_DEHYDRATION_MODEL=deepseek-v4-flash
 OMBRE_EMBEDDING_ENABLED=false
 OMBRE_DASHBOARD_PASSWORD=<choose a strong password>
 ```
