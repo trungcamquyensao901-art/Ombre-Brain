@@ -4,7 +4,10 @@
 # ============================================================
 
 # MCP 协议 SDK（Claude 通信核心）
-mcp>=1.0.0
+# Pin the SDK version whose public import path is used by server.py.
+# An unconstrained rebuild can resolve to an incompatible `mcp` package
+# layout and crash at startup with: No module named mcp.server.fastmcp.
+mcp==1.27.2
 
 # 模糊匹配（记忆桶搜索）
 rapidfuzz>=3.0.0
