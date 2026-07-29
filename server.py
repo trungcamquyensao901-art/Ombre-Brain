@@ -56,6 +56,7 @@ from dehydrator import Dehydrator
 from decay_engine import DecayEngine
 from embedding_engine import EmbeddingEngine
 from import_memory import ImportEngine
+from handoff_manager import HandoffManager
 from utils import load_config, setup_logging, strip_wikilinks, count_tokens_approx
 
 # --- Load config & init logging / 加载配置 & 初始化日志 ---
@@ -99,6 +100,7 @@ async def _fire_webhook(event: str, payload: dict) -> None:
 # --- Initialize core components / 初始化核心组件 ---
 embedding_engine = EmbeddingEngine(config)            # Embedding engine first (BucketManager depends on it)
 bucket_mgr = BucketManager(config, embedding_engine=embedding_engine)  # Bucket manager / 记忆桶管理器
+handoff_mgr = HandoffManager(config["buckets_dir"])  # Cross-session handoffs / 会话交接
 dehydrator = Dehydrator(config)                      # Dehydrator / 脱水器
 decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引擎
 import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
@@ -1061,6 +1063,100 @@ async def trace(
         else:
             changed += " → 已取消隐藏，重新参与浮现"
     return f"已修改记忆桶 {bucket_id}: {changed}"
+
+
+# =============================================================
+# Conversation handoff tools — short-term continuity across clients
+# 会话交接工具 —— 在桌面端、手机端和新对话之间保持短期连续性
+# =============================================================
+@mcp.tool()
+async def create_handoff(
+    summary: str,
+    channel: str = "claude",
+    emotional_state: dict | None = None,
+    unresolved: list[str] | None = None,
+    promises: list[dict] | None = None,
+    decisions: list[str] | None = None,
+    source_refs: list[str] | None = None,
+    ttl_days: int = 14,
+) -> str:
+    """在重要对话结束时创建短期交接。只记录摘要、情绪、未完成事项、承诺、决定和来源引用；普通闲聊无需调用。ttl_days默认14天。"""
+    try:
+        handoff = handoff_mgr.create(
+            summary=summary,
+            channel=channel,
+            emotional_state=emotional_state,
+            unresolved=unresolved,
+            promises=promises,
+            decisions=decisions,
+            source_refs=source_refs,
+            ttl_days=ttl_days,
+        )
+        return _json_lib.dumps(handoff, ensure_ascii=False, indent=2)
+    except (TypeError, ValueError) as exc:
+        return f"创建交接失败: {exc}"
+
+
+@mcp.tool()
+async def get_recent_handoffs(
+    limit: int = 3,
+    include_expired: bool = False,
+) -> str:
+    """读取最近的有效会话交接。新对话开始或需要恢复上下文时调用；默认最多3条，不返回过期项。"""
+    handoffs = handoff_mgr.list_recent(
+        limit=limit,
+        include_expired=include_expired,
+    )
+    if not handoffs:
+        return "没有有效的会话交接。"
+    return _json_lib.dumps(handoffs, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def resolve_handoff_item(
+    handoff_id: str,
+    item_id: str,
+    kind: str = "unresolved",
+) -> str:
+    """解决交接中的事项。kind=unresolved标记事项已解决；kind=promise标记承诺已履行。item_id来自get_recent_handoffs。"""
+    try:
+        handoff = handoff_mgr.resolve_item(handoff_id, item_id, kind)
+    except ValueError as exc:
+        return f"更新交接失败: {exc}"
+    if not handoff:
+        return f"未找到交接: {handoff_id}"
+    return _json_lib.dumps(handoff, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def promote_handoff(
+    handoff_id: str,
+    importance: int = 8,
+) -> str:
+    """把值得长期保留的交接晋升为正式记忆桶。已晋升的交接不会重复创建记忆。"""
+    handoff = handoff_mgr.get(handoff_id)
+    if not handoff:
+        return f"未找到交接: {handoff_id}"
+    if handoff.get("promoted_bucket_id"):
+        return f"该交接已晋升→{handoff['promoted_bucket_id']}"
+
+    content = handoff_mgr.promotion_content(handoff)
+    content += f"\n\n来源交接：{handoff_id}"
+    bucket_id = await bucket_mgr.create(
+        content=content,
+        tags=["会话交接", "连续性"],
+        importance=max(1, min(10, importance)),
+        domain=["关系"],
+        valence=0.5,
+        arousal=0.3,
+        name=f"会话交接-{handoff['created_at'][:10]}",
+    )
+    try:
+        await embedding_engine.generate_and_store(bucket_id, content)
+    except Exception as exc:
+        logger.warning(f"Handoff embedding failed / 交接向量化失败: {exc}")
+    handoff_mgr.mark_promoted(handoff_id, bucket_id)
+    return f"已晋升交接→{bucket_id}"
 
 
 # =============================================================

@@ -308,7 +308,7 @@ breath(query="今天很累")
     返回 ≤20 条结果
 ```
 
-6 个 MCP 工具 / 6 MCP tools:
+10 个 MCP 工具 / 10 MCP tools:
 
 | 工具 Tool | 作用 Purpose |
 |-----------|-------------|
@@ -318,6 +318,10 @@ breath(query="今天很累")
 | `trace` | 修改元数据、标记已解决、删除 / Modify metadata, mark resolved, delete |
 | `pulse` | 系统状态 + 所有记忆桶列表 / System status + bucket listing |
 | `dream` | 对话开头自省消化——读最近记忆，有沉淀写 feel，能放下就 resolve / Self-reflection at conversation start |
+| `create_handoff` | 保存短期会话交接：摘要、未完成事项、承诺和决定 / Save a short-term conversation handoff |
+| `get_recent_handoffs` | 跨窗口、设备读取最近有效交接 / Read recent active handoffs across clients |
+| `resolve_handoff_item` | 解决事项或标记承诺已履行 / Resolve an item or fulfill a promise |
+| `promote_handoff` | 将重要交接晋升为正式记忆桶 / Promote a handoff into long-term memory |
 
 ## 安装 / Setup
 
